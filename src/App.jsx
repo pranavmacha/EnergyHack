@@ -4,6 +4,7 @@ import GridMap from './components/GridMap';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import TelemetryPanel from './components/TelemetryPanel';
+import ThreatPanel from './components/ThreatPanel';
 import { GRID_NODES, GRID_EDGES, clamp } from './data/gridData';
 
 function App() {
@@ -155,7 +156,7 @@ function App() {
       <Header onlineCount={onlineCount} totalCount={nodes.length} currentPage={currentPage} onPageChange={setCurrentPage} />
       <main>
         <div className="content-area">
-          {currentPage === 'map' ? (
+          {currentPage === 'map' && (
             <div id="map-wrapper">
               <GridMap
                 nodes={nodes}
@@ -164,11 +165,20 @@ function App() {
                 onSelect={setSelectedId}
               />
             </div>
-          ) : (
+          )}
+          {currentPage === 'telemetry' && (
             <TelemetryPanel
               history={telemetryHistory}
               selectedId={selectedId}
               nodes={nodes}
+              onSelectNode={setSelectedId}
+            />
+          )}
+          {currentPage === 'threats' && (
+            <ThreatPanel
+              nodes={nodes}
+              edges={GRID_EDGES}
+              selectedId={selectedId}
               onSelectNode={setSelectedId}
             />
           )}
