@@ -14,13 +14,15 @@ function ThreatPanel({ nodes, edges, onSelectNode, selectedId, onThreatDetected 
   const [apiStatus, setApiStatus] = useState('connecting');
   const [scanHistory, setScanHistory] = useState([]);
 
-  // Get neighbor voltages for a node
+  // Get neighbor voltages for a node (excluding compromised neighbors)
   const getNeighborVoltages = (nodeId) => {
     const connectedEdges = edges.filter(e => e.source === nodeId || e.target === nodeId);
     return connectedEdges.map(e => {
       const neighborId = e.source === nodeId ? e.target : e.source;
       const neighbor = nodes.find(n => n.id === neighborId);
-      return neighbor ? neighbor.voltage : null;
+      // Skip compromised nodes — their data is untrusted
+      if (!neighbor || neighbor.status === 'attacked' || neighbor.status === 'quarantined' || neighbor.status === 'offline') return null;
+      return neighbor.voltage;
     }).filter(v => v !== null);
   };
 
