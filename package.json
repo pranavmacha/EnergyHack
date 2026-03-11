@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "perf:lighthouse:mobile": "npx lighthouse http://localhost:3000 --only-categories=performance --preset=perf --emulated-form-factor=mobile --output=json --output=html --output-path=./perf/reports/lighthouse-mobile",
+    "perf:lighthouse:desktop": "npx lighthouse http://localhost:3000 --only-categories=performance --preset=desktop --output=json --output=html --output-path=./perf/reports/lighthouse-desktop"
   },
   "dependencies": {
     "chart.js": "^4.5.1",
@@ -19,5 +21,8 @@
   "devDependencies": {
     "@vitejs/plugin-react": "^4.3.4",
     "vite": "^6.0.0"
+  },
+  "optionalDependencies": {
+    "@rollup/rollup-win32-x64-msvc": "^4.59.0"
   }
 }

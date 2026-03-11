@@ -8,7 +8,10 @@ import numpy as np
 import joblib
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
+from datetime import datetime
+import pandas as pd
 
 # Add parent dir so we can import from both fdi/ and ddos/
 sys.path.insert(0, os.path.dirname(__file__))
@@ -54,12 +57,25 @@ class NodeReading(BaseModel):
 class ScanRequest(BaseModel):
     nodes: list[NodeReading]
 
+class LogEntry(BaseModel):
+    timestamp: str
+    event: str
+    level: str = "INFO"
+
+class ChatRequest(BaseModel):
+    message: str
+
+from typing import List, Dict, Any
+
+# ── RAG Context Store ──────────────────────────────────────
+SYSTEM_LOGS: List[Dict[str, Any]] = []
 
 # ── DDoS detection helper ──────────────────────────────────
 
 def detect_ddos(packet_rate, packet_size, connections, error_rate):
     """Use Isolation Forest to detect DDoS anomalies."""
-    sample = np.array([[packet_rate, packet_size, connections, error_rate]])
+    sample = pd.DataFrame([[packet_rate, packet_size, connections, error_rate]], 
+                          columns=["packet_rate", "packet_size", "connections", "error_rate"])
     prediction = ddos_model.predict(sample)[0]
     score = ddos_model.decision_function(sample)[0]
     # Isolation Forest: -1 = anomaly (attack), 1 = normal
@@ -117,6 +133,52 @@ def scan_all(req: ScanRequest):
         })
 
     return {"results": results, "scanned": len(results)}
+
+
+@app.post("/api/log")
+def receive_log(entry: LogEntry):
+    """Store system logs for the RAG chatbot context."""
+    SYSTEM_LOGS.append(entry.model_dump() if hasattr(entry, "model_dump") else entry.dict())
+    if len(SYSTEM_LOGS) > 50:
+        SYSTEM_LOGS.pop(0)
+    return {"status": "ok"}
+
+
+@app.post("/api/chat")
+async def chat_endpoint(req: ChatRequest):
+    """LangChain RAG endpoint using Ollama."""
+    try:
+        from langchain_community.llms import Ollama
+        llm = Ollama(model="mistral")
+        
+        # Build context from the last 20 logs
+        context_lines = []
+        for log in SYSTEM_LOGS[-20:]:
+            context_lines.append(f"[{log['timestamp']}] {log['level']}: {log['event']}")
+        context_str = "\n".join(context_lines) if context_lines else "No recent events."
+        
+        prompt = f"""You are GridShield AI, an advanced forensics copilot for a power grid control room.
+You analyze telemetry data, FDI (False Data Injection) attacks, and DDoS attacks.
+Be concise, professional, and tactical.
+
+Recent Grid Events Context:
+{context_str}
+
+Operator Question: {req.message}
+GridShield AI Response:"""
+
+        async def generate():
+            try:
+                for chunk in llm.stream(prompt):
+                    yield chunk
+            except Exception as e:
+                yield f"Error generating text: {e}"
+
+        return StreamingResponse(generate(), media_type="text/plain")
+
+    except Exception as e:
+        from fastapi.responses import PlainTextResponse
+        return PlainTextResponse(f"Ollama connection error: {str(e)}\nMake sure Ollama is running (`ollama serve`).", status_code=500)
 
 
 if __name__ == "__main__":

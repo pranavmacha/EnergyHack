@@ -5,6 +5,7 @@ import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import TelemetryPanel from './components/TelemetryPanel';
 import ThreatPanel from './components/ThreatPanel';
+import ChatCopilot from './components/ChatCopilot';
 import { GRID_NODES, GRID_EDGES, clamp } from './data/gridData';
 import { findReroutePath } from './utils/dijkstra';
 
@@ -18,11 +19,22 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [currentPage, setCurrentPage] = useState('map');
   const [reroutePath, setReroutePath] = useState(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
   const handleDeselect = useCallback(() => setSelectedId(null), []);
 
   const addLog = useCallback((message) => {
     const time = new Date().toTimeString().slice(0, 8);
     setLogs(prev => [{ time, message }, ...prev.slice(0, 9)]);
+    
+    fetch('http://localhost:8000/api/log', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        timestamp: time, 
+        event: message, 
+        level: message.includes('CRITICAL') || message.includes('ALERT') ? 'CRITICAL' : 'INFO' 
+      })
+    }).catch(err => console.error("RAG Log sync failed:", err));
   }, []);
 
   // Dijkstra reroute — find alternate power path around a downed node
@@ -244,6 +256,12 @@ function App() {
               onThreatDetected={handleThreatDetected}
             />
           </div>
+          <ChatCopilot isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} />
+          {!isChatOpen && (
+            <button className="chat-toggle-btn" onClick={() => setIsChatOpen(true)}>
+              <span className="material-symbols-outlined">smart_toy</span>
+            </button>
+          )}
         </div>
         <Sidebar
           selectedNode={selectedNode}

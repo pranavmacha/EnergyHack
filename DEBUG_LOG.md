@@ -2,6 +2,29 @@
 
 This file tracks important bugs encountered during the development of GridShield AI and serves as a lesson-learned document to prevent them from recurring.
 
+---
+
+## 📈 Perf Process Update: Phase 1 Baseline Setup
+
+**What changed:**
+- Added repeatable Lighthouse scripts in `package.json`:
+  - `perf:lighthouse:mobile`
+  - `perf:lighthouse:desktop`
+- Added measurement workflow guide:
+  - `perf/MEASUREMENT_GUIDE.md`
+- Added baseline/after-results template:
+  - `perf/BASELINE_RESULTS.md`
+- Added report output directory:
+  - `perf/reports/`
+
+**Why this matters:**
+Phase 2 optimizations are now in place, but without baseline numbers we cannot verify real gains or detect regressions confidently. This measurement setup makes each performance phase evidence-driven.
+
+**Known blocker in current shell/runtime:**
+- Frontend commands in this terminal still fail due missing optional Rollup binary:
+  - `@rollup/rollup-linux-x64-gnu`
+- Performance runs should be executed in the same environment where frontend currently runs successfully.
+
 ## 🐛 Bug: React Blank Screen (ReferenceError: Cannot access before initialization)
 
 **Description:**
