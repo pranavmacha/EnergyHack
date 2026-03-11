@@ -185,7 +185,7 @@ function App() {
               onSelectNode={setSelectedId}
             />
           )}
-          {currentPage === 'threats' && (
+          <div style={{ display: currentPage === 'threats' ? 'block' : 'none' }}>
             <ThreatPanel
               nodes={nodes}
               edges={GRID_EDGES}
@@ -193,7 +193,7 @@ function App() {
               onSelectNode={setSelectedId}
               onThreatDetected={handleThreatDetected}
             />
-          )}
+          </div>
         </div>
         <Sidebar
           selectedNode={selectedNode}
