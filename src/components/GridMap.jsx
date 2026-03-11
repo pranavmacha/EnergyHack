@@ -20,8 +20,18 @@ function MapClickHandler({ onSelect, markerClickedRef }) {
   return null;
 }
 
-function GridMap({ nodes, edges, selectedId, onSelect }) {
+function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
   const markerClickedRef = useRef(false);
+
+  // Check if an edge is part of the Dijkstra reroute path
+  const isRerouteEdge = (edge) => {
+    if (!reroutePath || !reroutePath.edges) return false;
+    return reroutePath.edges.some(re =>
+      (re.source === edge.source && re.target === edge.target) ||
+      (re.source === edge.target && re.target === edge.source)
+    );
+  };
+
   // Find connected edges for the selected node
   const isEdgeHighlighted = (edge) => {
     return selectedId && (edge.source === selectedId || edge.target === selectedId);
@@ -52,15 +62,34 @@ function GridMap({ nodes, edges, selectedId, onSelect }) {
         const tgt = nodes.find(n => n.id === edge.target);
         if (!src || !tgt) return null;
         const highlighted = isEdgeHighlighted(edge);
+        const isReroute = isRerouteEdge(edge);
         return (
           <Polyline
             key={`${edge.source}-${edge.target}`}
             positions={[[src.lat, src.lng], [tgt.lat, tgt.lng]]}
             pathOptions={{
-              color: highlighted ? '#0aff99' : '#00ff41',
-              weight: highlighted ? 2.5 : 1.5,
-              opacity: highlighted ? 0.8 : 0.3,
-              dashArray: null,
+              color: isReroute ? '#00e5ff' : highlighted ? '#0aff99' : '#00ff41',
+              weight: isReroute ? 4 : highlighted ? 2.5 : 1.5,
+              opacity: isReroute ? 0.9 : highlighted ? 0.8 : 0.3,
+              dashArray: isReroute ? '10 6' : null,
+            }}
+          />
+        );
+      })}
+
+      {/* Dijkstra reroute glow layer (rendered on top for visual emphasis) */}
+      {reroutePath && reroutePath.edges && reroutePath.edges.map((edge, i) => {
+        const src = nodes.find(n => n.id === edge.source);
+        const tgt = nodes.find(n => n.id === edge.target);
+        if (!src || !tgt) return null;
+        return (
+          <Polyline
+            key={`reroute-glow-${i}`}
+            positions={[[src.lat, src.lng], [tgt.lat, tgt.lng]]}
+            pathOptions={{
+              color: '#00e5ff',
+              weight: 8,
+              opacity: 0.2,
             }}
           />
         );
@@ -69,17 +98,18 @@ function GridMap({ nodes, edges, selectedId, onSelect }) {
       {/* Grid Nodes (substations) */}
       {nodes.map(node => {
         const isSelected = node.id === selectedId;
+        const isOnReroute = reroutePath && reroutePath.path && reroutePath.path.includes(node.id);
         const color = NODE_COLORS[node.status] || NODE_COLORS.online;
         return (
           <CircleMarker
             key={node.id}
             center={[node.lat, node.lng]}
-            radius={isSelected ? 12 : 8}
+            radius={isSelected ? 12 : isOnReroute ? 10 : 8}
             pathOptions={{
-              fillColor: isSelected ? '#0aff99' : color,
+              fillColor: isSelected ? '#0aff99' : isOnReroute ? '#00e5ff' : color,
               fillOpacity: 0.85,
-              color: isSelected ? '#0aff99' : color,
-              weight: isSelected ? 3 : 2,
+              color: isSelected ? '#0aff99' : isOnReroute ? '#00e5ff' : color,
+              weight: isSelected ? 3 : isOnReroute ? 3 : 2,
               opacity: 0.8,
             }}
             eventHandlers={{

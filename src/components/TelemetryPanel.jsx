@@ -14,8 +14,12 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const NODE_COLORS = {
   N1: '#00ff41', N2: '#0aff99', N3: '#00aaff', N4: '#ffaa00',
-  N5: '#ff6600', N6: '#cc44ff', N7: '#ff4488', N8: '#44ffcc'
+  N5: '#ff6600', N6: '#cc44ff', N7: '#ff4488', N8: '#44ffcc',
+  N9: '#66ccff', N10: '#ffd166', N11: '#9bff8a', N12: '#ff8fab',
+  N13: '#7bdff2', N14: '#f4a261', N15: '#b8b8ff'
 };
+
+const DEFAULT_NODE_COLOR = '#6b8f71';
 
 function makeChartOptions(title, yLabel, suggestedMin, suggestedMax) {
   return {
@@ -70,6 +74,7 @@ function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
     nodes.map(node => {
       const isSelected = selectedId === node.id;
       const noSelection = selectedId === null;
+      const nodeColor = NODE_COLORS[node.id] || DEFAULT_NODE_COLOR;
       return {
         label: node.name,
         data: history.map(h => {
@@ -77,13 +82,13 @@ function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
           return r ? r[field] : null;
         }),
         borderColor: isSelected
-          ? NODE_COLORS[node.id]
+          ? nodeColor
           : noSelection
-            ? `${NODE_COLORS[node.id]}60`
-            : `${NODE_COLORS[node.id]}20`,
+            ? `${nodeColor}60`
+            : `${nodeColor}20`,
         borderWidth: isSelected ? 2.5 : noSelection ? 1.2 : 0.8,
         pointRadius: isSelected ? 2 : 0,
-        pointBackgroundColor: NODE_COLORS[node.id],
+        pointBackgroundColor: nodeColor,
         fill: false,
         tension: 0.3,
       };
@@ -119,10 +124,10 @@ function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
           <button
             key={node.id}
             className={`legend-item ${selectedId === node.id ? 'active' : ''}`}
-            style={{ '--node-color': NODE_COLORS[node.id] }}
+            style={{ '--node-color': NODE_COLORS[node.id] || DEFAULT_NODE_COLOR }}
             onClick={() => onSelectNode(selectedId === node.id ? null : node.id)}
           >
-            <span className="legend-dot" style={{ background: NODE_COLORS[node.id] }}></span>
+            <span className="legend-dot" style={{ background: NODE_COLORS[node.id] || DEFAULT_NODE_COLOR }}></span>
             {node.name}
           </button>
         ))}
