@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 const STATUS_STYLES = {
   NORMAL: { color: '#00ff41', icon: '✓', bg: 'rgba(0,255,65,0.06)' },
   FDI_ATTACK: { color: '#ff0040', icon: '⚠', bg: 'rgba(255,0,64,0.08)' },
+  DDOS_ATTACK: { color: '#ff4400', icon: '🌊', bg: 'rgba(255,68,0,0.08)' },
   GENUINE_FAILURE: { color: '#ffaa00', icon: '⚡', bg: 'rgba(255,170,0,0.08)' },
   SCANNING: { color: '#4a8a4a', icon: '◌', bg: 'transparent' },
   ERROR: { color: '#555', icon: '✕', bg: 'rgba(85,85,85,0.06)' },
@@ -38,6 +39,10 @@ function ThreatPanel({ nodes, edges, onSelectNode, selectedId, onThreatDetected 
             nodeName: n.name,
             voltage: n.voltage,
             neighborVoltages: getNeighborVoltages(n.id),
+            packetRate: n.packetRate || 500,
+            packetSize: 512,
+            connections: n.packetRate > 100000 ? 2000 : 50,
+            errorRate: n.packetRate > 100000 ? 0.3 : 0.01,
           }))
         };
 
@@ -79,6 +84,7 @@ function ThreatPanel({ nodes, edges, onSelectNode, selectedId, onThreatDetected 
   }, [nodes]);
 
   const threatCount = scanResults.filter(r => r.prediction === 'FDI_ATTACK').length;
+  const ddosCount = scanResults.filter(r => r.prediction === 'DDOS_ATTACK').length;
   const failureCount = scanResults.filter(r => r.prediction === 'GENUINE_FAILURE').length;
   const normalCount = scanResults.filter(r => r.prediction === 'NORMAL').length;
 
@@ -103,6 +109,10 @@ function ThreatPanel({ nodes, edges, onSelectNode, selectedId, onThreatDetected 
         <div className="threat-stat">
           <span className="threat-stat-label">FDI ATTACKS</span>
           <span className="threat-stat-value red">{threatCount}</span>
+        </div>
+        <div className="threat-stat">
+          <span className="threat-stat-label">DDOS ATTACKS</span>
+          <span className="threat-stat-value" style={{color: '#ff4400'}}>{ddosCount}</span>
         </div>
         <div className="threat-stat">
           <span className="threat-stat-label">FAILURES</span>
@@ -149,12 +159,16 @@ function ThreatPanel({ nodes, edges, onSelectNode, selectedId, onThreatDetected 
                         <span className="scan-metric-value">{result.extracted_features?.voltage?.toFixed(1)}V</span>
                       </div>
                       <div className="scan-metric">
-                        <span className="scan-metric-label">Neighbor Avg</span>
-                        <span className="scan-metric-value">{result.extracted_features?.neighbor_mean?.toFixed(1)}V</span>
+                        <span className="scan-metric-label">FDI Status</span>
+                        <span className="scan-metric-value" style={{ color: result.fdi?.prediction === 'FDI_ATTACK' ? '#ff0040' : '#00ff41', fontSize: '9px' }}>
+                          {result.fdi?.prediction || 'N/A'}
+                        </span>
                       </div>
                       <div className="scan-metric">
-                        <span className="scan-metric-label">Deviation</span>
-                        <span className="scan-metric-value">{result.extracted_features?.difference_from_neighbors?.toFixed(2)}V</span>
+                        <span className="scan-metric-label">DDoS Status</span>
+                        <span className="scan-metric-value" style={{ color: result.ddos?.prediction === 'DDOS_ATTACK' ? '#ff4400' : '#00ff41', fontSize: '9px' }}>
+                          {result.ddos?.prediction === 'DDOS_ATTACK' ? 'ATTACK' : 'NORMAL'}
+                        </span>
                       </div>
                     </div>
                   </div>

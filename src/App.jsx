@@ -40,8 +40,8 @@ function App() {
           if (node.status === 'attacked' && node._attackType === 'FDI') {
             return { ...node, voltage: 0, current: 0 }; // Spoofed to 0
           }
-          if (node.status === 'offline') {
-            return { ...node, packetRate: Math.round(2000000 + Math.random() * 500000) }; // DDoS flood
+          if (node.status === 'offline' && node._attackType === 'DDOS') {
+            return { ...node, packetRate: Math.round(2000000 + Math.random() * 500000) }; // Active DDoS flood
           }
           if (node.status === 'quarantined') {
             // Quarantined nodes show recovering values
@@ -97,20 +97,15 @@ function App() {
             n.id === nodeId ? { ...n, status: 'offline', _attackType: 'DDOS', packetRate: 2400000 } : n
           ));
           addLog(`🔴 ALERT: DDoS attack on ${nodeName}. 2.4M packets/sec. Traffic filtering deployed.`);
-
-          // After 2 seconds, show reroute
-          setTimeout(() => {
-            addLog(`🔵 Self-healing reroute active. Power rerouted around ${nodeName}. Zero blackouts.`);
-          }, 2000);
         }
       }
 
       if (action === 'ATTACK_STOP') {
-        // Restore node to online
+        // Restore node to online with recovery cooldown
         const originalNode = GRID_NODES.find(n => n.id === nodeId);
         if (originalNode) {
           setNodes(prev => prev.map(n =>
-            n.id === nodeId ? { ...n, status: 'online', _attackType: null, voltage: originalNode.voltage, current: originalNode.current, packetRate: originalNode.packetRate } : n
+            n.id === nodeId ? { ...n, status: 'online', _attackType: null, _recoveredAt: Date.now(), voltage: originalNode.voltage, current: originalNode.current, packetRate: originalNode.packetRate } : n
           ));
           addLog(`🟢 ${nodeName} recovered. All systems nominal.`);
         }
@@ -148,10 +143,16 @@ function App() {
       if (n.id !== threat.nodeId) return n;
       // Don't re-trigger if already handled
       if (n.status === 'quarantined' || n.status === 'offline') return n;
+      // Don't re-trigger during recovery cooldown (10s after manual stop)
+      if (n._recoveredAt && Date.now() - n._recoveredAt < 10000) return n;
 
       if (threat.prediction === 'FDI_ATTACK') {
         addLog(`🤖 ML ENGINE: FDI_ATTACK on ${threat.nodeName} (${threat.confidence} confidence). Auto-quarantining.`);
         return { ...n, status: 'quarantined', _attackType: 'FDI' };
+      }
+      if (threat.prediction === 'DDOS_ATTACK') {
+        addLog(`🤖 ML ENGINE: DDOS_ATTACK on ${threat.nodeName} (${threat.confidence} confidence). Auto-filtering traffic.`);
+        return { ...n, status: 'quarantined', _attackType: null, packetRate: 500 };
       }
       if (threat.prediction === 'GENUINE_FAILURE') {
         addLog(`🤖 ML ENGINE: Genuine failure at ${threat.nodeName} (${threat.confidence}). Dispatching repair.`);
