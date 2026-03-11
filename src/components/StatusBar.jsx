@@ -1,3 +1,5 @@
+import { memo } from 'react';
+
 function StatusBar({ nodes }) {
   const onlineCount = nodes.filter(n => n.status === 'online').length;
   const avgLoad = Math.round(nodes.reduce((s, n) => s + n.load, 0) / nodes.length);
@@ -25,4 +27,4 @@ function StatusBar({ nodes }) {
   );
 }
 
-export default StatusBar;
+export default memo(StatusBar);

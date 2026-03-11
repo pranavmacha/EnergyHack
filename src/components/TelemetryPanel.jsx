@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -14,8 +15,12 @@ ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, T
 
 const NODE_COLORS = {
   N1: '#00ff41', N2: '#0aff99', N3: '#00aaff', N4: '#ffaa00',
-  N5: '#ff6600', N6: '#cc44ff', N7: '#ff4488', N8: '#44ffcc'
+  N5: '#ff6600', N6: '#cc44ff', N7: '#ff4488', N8: '#44ffcc',
+  N9: '#66ccff', N10: '#ffd166', N11: '#9bff8a', N12: '#ff8fab',
+  N13: '#7bdff2', N14: '#f4a261', N15: '#b8b8ff'
 };
+
+const DEFAULT_NODE_COLOR = '#6b8f71';
 
 function makeChartOptions(title, yLabel, suggestedMin, suggestedMax) {
   return {
@@ -64,53 +69,80 @@ function makeChartOptions(title, yLabel, suggestedMin, suggestedMax) {
 }
 
 function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
-  const labels = history.map(h => h.time.slice(3, 8));
+  const labels = useMemo(
+    () => history.map((h) => h.time.slice(3, 8)),
+    [history]
+  );
+
+  const recordsByNodeId = useMemo(() => {
+    const map = new Map();
+    for (const node of nodes) {
+      map.set(node.id, history.map((h) => h.nodes.find((entry) => entry.id === node.id) || null));
+    }
+    return map;
+  }, [history, nodes]);
 
   const makeNodeDatasets = (field) =>
-    nodes.map(node => {
+    nodes.map((node) => {
       const isSelected = selectedId === node.id;
       const noSelection = selectedId === null;
+      const nodeColor = NODE_COLORS[node.id] || DEFAULT_NODE_COLOR;
+      const series = recordsByNodeId.get(node.id) || [];
+
       return {
         label: node.name,
-        data: history.map(h => {
-          const r = h.nodes.find(n => n.id === node.id);
-          return r ? r[field] : null;
-        }),
+        data: series.map((row) => (row ? row[field] : null)),
         borderColor: isSelected
-          ? NODE_COLORS[node.id]
+          ? nodeColor
           : noSelection
-            ? `${NODE_COLORS[node.id]}60`
-            : `${NODE_COLORS[node.id]}20`,
+            ? `${nodeColor}60`
+            : `${nodeColor}20`,
         borderWidth: isSelected ? 2.5 : noSelection ? 1.2 : 0.8,
         pointRadius: isSelected ? 2 : 0,
-        pointBackgroundColor: NODE_COLORS[node.id],
+        pointBackgroundColor: nodeColor,
         fill: false,
         tension: 0.3,
       };
     });
 
   // Voltage chart — includes limit line
-  const voltageData = {
-    labels,
-    datasets: [
-      {
-        label: '⚠ LIMIT (250V)',
-        data: Array(history.length).fill(250),
-        borderColor: '#ff004066',
-        borderDash: [8, 4],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-      },
-      ...makeNodeDatasets('voltage'),
-    ],
-  };
+  const voltageData = useMemo(
+    () => ({
+      labels,
+      datasets: [
+        {
+          label: '⚠ LIMIT (250V)',
+          data: Array(history.length).fill(250),
+          borderColor: '#ff004066',
+          borderDash: [8, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        },
+        ...makeNodeDatasets('voltage'),
+      ],
+    }),
+    [history.length, labels, nodes, selectedId, recordsByNodeId]
+  );
 
   // Traffic chart
-  const trafficData = {
-    labels,
-    datasets: makeNodeDatasets('packetRate'),
-  };
+  const trafficData = useMemo(
+    () => ({
+      labels,
+      datasets: makeNodeDatasets('packetRate'),
+    }),
+    [labels, nodes, selectedId, recordsByNodeId]
+  );
+
+  const voltageOptions = useMemo(
+    () => makeChartOptions('POWER TELEMETRY', 'Voltage (V)', 210, 260),
+    []
+  );
+
+  const trafficOptions = useMemo(
+    () => makeChartOptions('NETWORK TRAFFIC', 'Packets/s', 420, 600),
+    []
+  );
 
   return (
     <div id="telemetry-panel" className="telemetry-fullpage">
@@ -119,24 +151,24 @@ function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
           <button
             key={node.id}
             className={`legend-item ${selectedId === node.id ? 'active' : ''}`}
-            style={{ '--node-color': NODE_COLORS[node.id] }}
+            style={{ '--node-color': NODE_COLORS[node.id] || DEFAULT_NODE_COLOR }}
             onClick={() => onSelectNode(selectedId === node.id ? null : node.id)}
           >
-            <span className="legend-dot" style={{ background: NODE_COLORS[node.id] }}></span>
+            <span className="legend-dot" style={{ background: NODE_COLORS[node.id] || DEFAULT_NODE_COLOR }}></span>
             {node.name}
           </button>
         ))}
       </div>
       <div className="charts-row">
         <div className="chart-container">
-          <Line data={voltageData} options={makeChartOptions('POWER TELEMETRY', 'Voltage (V)', 210, 260)} />
+          <Line data={voltageData} options={voltageOptions} />
         </div>
         <div className="chart-container">
-          <Line data={trafficData} options={makeChartOptions('NETWORK TRAFFIC', 'Packets/s', 420, 600)} />
+          <Line data={trafficData} options={trafficOptions} />
         </div>
       </div>
     </div>
   );
 }
 
-export default TelemetryPanel;
+export default memo(TelemetryPanel);

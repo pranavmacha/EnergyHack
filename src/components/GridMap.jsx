@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMapEvents } from 'react-leaflet';
 import { NODE_COLORS } from '../data/gridData';
 import 'leaflet/dist/leaflet.css';
@@ -20,12 +20,25 @@ function MapClickHandler({ onSelect, markerClickedRef }) {
   return null;
 }
 
-function GridMap({ nodes, edges, selectedId, onSelect }) {
+function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
   const markerClickedRef = useRef(false);
-  // Find connected edges for the selected node
-  const isEdgeHighlighted = (edge) => {
-    return selectedId && (edge.source === selectedId || edge.target === selectedId);
-  };
+
+  const nodeById = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node])),
+    [nodes]
+  );
+
+  const rerouteEdgeKeys = useMemo(() => {
+    if (!reroutePath?.edges) return new Set();
+    return new Set(
+      reroutePath.edges.map((edge) => [edge.source, edge.target].sort().join('|'))
+    );
+  }, [reroutePath]);
+
+  const rerouteNodeIds = useMemo(
+    () => new Set(reroutePath?.path || []),
+    [reroutePath]
+  );
 
   return (
     <MapContainer
@@ -48,19 +61,38 @@ function GridMap({ nodes, edges, selectedId, onSelect }) {
 
       {/* Power Lines (edges) */}
       {edges.map(edge => {
-        const src = nodes.find(n => n.id === edge.source);
-        const tgt = nodes.find(n => n.id === edge.target);
+        const src = nodeById.get(edge.source);
+        const tgt = nodeById.get(edge.target);
         if (!src || !tgt) return null;
-        const highlighted = isEdgeHighlighted(edge);
+        const highlighted = selectedId && (edge.source === selectedId || edge.target === selectedId);
+        const isReroute = rerouteEdgeKeys.has([edge.source, edge.target].sort().join('|'));
         return (
           <Polyline
             key={`${edge.source}-${edge.target}`}
             positions={[[src.lat, src.lng], [tgt.lat, tgt.lng]]}
             pathOptions={{
-              color: highlighted ? '#0aff99' : '#00ff41',
-              weight: highlighted ? 2.5 : 1.5,
-              opacity: highlighted ? 0.8 : 0.3,
-              dashArray: null,
+              color: isReroute ? '#00e5ff' : highlighted ? '#0aff99' : '#00ff41',
+              weight: isReroute ? 4 : highlighted ? 2.5 : 1.5,
+              opacity: isReroute ? 0.9 : highlighted ? 0.8 : 0.3,
+              dashArray: isReroute ? '10 6' : null,
+            }}
+          />
+        );
+      })}
+
+      {/* Dijkstra reroute glow layer (rendered on top for visual emphasis) */}
+      {reroutePath && reroutePath.edges && reroutePath.edges.map((edge, i) => {
+        const src = nodeById.get(edge.source);
+        const tgt = nodeById.get(edge.target);
+        if (!src || !tgt) return null;
+        return (
+          <Polyline
+            key={`reroute-glow-${i}`}
+            positions={[[src.lat, src.lng], [tgt.lat, tgt.lng]]}
+            pathOptions={{
+              color: '#00e5ff',
+              weight: 8,
+              opacity: 0.2,
             }}
           />
         );
@@ -69,17 +101,18 @@ function GridMap({ nodes, edges, selectedId, onSelect }) {
       {/* Grid Nodes (substations) */}
       {nodes.map(node => {
         const isSelected = node.id === selectedId;
+        const isOnReroute = rerouteNodeIds.has(node.id);
         const color = NODE_COLORS[node.status] || NODE_COLORS.online;
         return (
           <CircleMarker
             key={node.id}
             center={[node.lat, node.lng]}
-            radius={isSelected ? 12 : 8}
+            radius={isSelected ? 12 : isOnReroute ? 10 : 8}
             pathOptions={{
-              fillColor: isSelected ? '#0aff99' : color,
+              fillColor: isSelected ? '#0aff99' : isOnReroute ? '#00e5ff' : color,
               fillOpacity: 0.85,
-              color: isSelected ? '#0aff99' : color,
-              weight: isSelected ? 3 : 2,
+              color: isSelected ? '#0aff99' : isOnReroute ? '#00e5ff' : color,
+              weight: isSelected ? 3 : isOnReroute ? 3 : 2,
               opacity: 0.8,
             }}
             eventHandlers={{
@@ -99,4 +132,4 @@ function GridMap({ nodes, edges, selectedId, onSelect }) {
   );
 }
 
-export default GridMap;
+export default memo(GridMap);
