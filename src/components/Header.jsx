@@ -31,6 +31,12 @@ function Header({ onlineCount, totalCount, currentPage, onPageChange }) {
           >
             📈 Telemetry
           </button>
+          <button
+            className={`nav-tab ${currentPage === 'threats' ? 'active' : ''}`}
+            onClick={() => onPageChange('threats')}
+          >
+            🔍 Threats
+          </button>
         </nav>
       </div>
       <div className="header-status">

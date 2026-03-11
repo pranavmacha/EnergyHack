@@ -4,6 +4,7 @@ import GridMap from './components/GridMap';
 import Sidebar from './components/Sidebar';
 import StatusBar from './components/StatusBar';
 import TelemetryPanel from './components/TelemetryPanel';
+import ThreatPanel from './components/ThreatPanel';
 import { GRID_NODES, GRID_EDGES, clamp } from './data/gridData';
 
 function App() {
@@ -89,15 +90,6 @@ function App() {
           ));
           addLog(`⚠️ CRITICAL: FDI signature detected at ${nodeName}. Voltage spoofed to 0V.`);
 
-          // After 3 seconds, AI intercepts — quarantine the node
-          setTimeout(() => {
-            setNodes(prev => prev.map(n =>
-              n.id === nodeId && n.status === 'attacked'
-                ? { ...n, status: 'quarantined', voltage: 228, current: 470 }
-                : n
-            ));
-            addLog(`🟡 AI Intercept: ${nodeName} quarantined. Surge BLOCKED. Neighbors confirmed healthy.`);
-          }, 3000);
 
         } else if (type === 'DDOS') {
           // DDoS: Node goes offline, packet rate spikes
@@ -150,12 +142,31 @@ function App() {
     }).filter(Boolean);
   }, [nodes]);
 
+  // ML model triggers actual defense actions
+  const handleThreatDetected = useCallback((threat) => {
+    setNodes(prev => prev.map(n => {
+      if (n.id !== threat.nodeId) return n;
+      // Don't re-trigger if already handled
+      if (n.status === 'quarantined' || n.status === 'offline') return n;
+
+      if (threat.prediction === 'FDI_ATTACK') {
+        addLog(`🤖 ML ENGINE: FDI_ATTACK on ${threat.nodeName} (${threat.confidence} confidence). Auto-quarantining.`);
+        return { ...n, status: 'quarantined', _attackType: 'FDI' };
+      }
+      if (threat.prediction === 'GENUINE_FAILURE') {
+        addLog(`🤖 ML ENGINE: Genuine failure at ${threat.nodeName} (${threat.confidence}). Dispatching repair.`);
+        return { ...n, status: 'quarantined', _attackType: null };
+      }
+      return n;
+    }));
+  }, [addLog]);
+
   return (
     <div id="app">
       <Header onlineCount={onlineCount} totalCount={nodes.length} currentPage={currentPage} onPageChange={setCurrentPage} />
       <main>
         <div className="content-area">
-          {currentPage === 'map' ? (
+          {currentPage === 'map' && (
             <div id="map-wrapper">
               <GridMap
                 nodes={nodes}
@@ -164,12 +175,22 @@ function App() {
                 onSelect={setSelectedId}
               />
             </div>
-          ) : (
+          )}
+          {currentPage === 'telemetry' && (
             <TelemetryPanel
               history={telemetryHistory}
               selectedId={selectedId}
               nodes={nodes}
               onSelectNode={setSelectedId}
+            />
+          )}
+          {currentPage === 'threats' && (
+            <ThreatPanel
+              nodes={nodes}
+              edges={GRID_EDGES}
+              selectedId={selectedId}
+              onSelectNode={setSelectedId}
+              onThreatDetected={handleThreatDetected}
             />
           )}
         </div>
