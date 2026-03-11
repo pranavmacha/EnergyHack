@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>⚠ GridShield — Attack Simulator</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Share+Tech+Mono&display=swap');
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#0a0505;--panel:rgba(20,8,8,0.92);--red:#ff0040;--red-dim:#cc0033;
+  --red-glow:rgba(255,0,64,0.4);--red-faint:rgba(255,0,64,0.08);
+  --amber:#ffaa00;--text:#ffc0c0;--text-dim:#8a4a4a;--border:rgba(255,0,64,0.2);
+  --font-d:'Orbitron',sans-serif;--font-m:'Share Tech Mono','Courier New',monospace;
+}
+html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--text);font-family:var(--font-m)}
+body::after{content:'';position:fixed;top:0;left:0;width:100%;height:100%;background:repeating-linear-gradient(transparent 0px,transparent 2px,rgba(255,0,64,0.01) 2px,rgba(255,0,64,0.01) 4px);pointer-events:none;z-index:9999}
+#app{display:flex;flex-direction:column;height:100%}
+
+header{height:56px;background:linear-gradient(180deg,#180808,var(--bg));border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;padding:0 24px}
+header h1{font-family:var(--font-d);font-size:15px;color:var(--red);text-shadow:0 0 10px var(--red-glow);letter-spacing:3px}
+header .warn{color:var(--amber);font-size:11px;animation:blink 1s infinite}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:0.3}}
+
+main{flex:1;display:flex;gap:1px;overflow:hidden;padding:16px;gap:16px}
+
+.panel{background:var(--panel);border:1px solid var(--border);border-radius:4px;padding:20px;flex:1;display:flex;flex-direction:column}
+.panel-title{font-family:var(--font-d);font-size:10px;color:var(--red);text-transform:uppercase;letter-spacing:2px;margin-bottom:16px;text-shadow:0 0 8px var(--red-glow)}
+.panel-title::before{content:'▸ '}
+
+/* Target Selection */
+.node-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:20px}
+.node-btn{background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--font-m);font-size:11px;padding:10px;border-radius:3px;cursor:pointer;text-align:left;transition:all 0.2s}
+.node-btn:hover{border-color:var(--red);color:var(--text)}
+.node-btn.selected{border-color:var(--red);color:var(--red);background:var(--red-faint);box-shadow:0 0 10px rgba(255,0,64,0.1)}
+.node-btn .node-id{font-size:9px;color:var(--text-dim);display:block;margin-top:2px}
+
+/* Attack Controls */
+.attack-section{margin-top:auto}
+.attack-type{display:flex;gap:8px;margin-bottom:12px}
+.type-btn{flex:1;background:none;border:1px solid var(--border);color:var(--text-dim);font-family:var(--font-m);font-size:11px;padding:10px;border-radius:3px;cursor:pointer;transition:all 0.2s;text-align:center}
+.type-btn:hover{border-color:var(--red);color:var(--text)}
+.type-btn.selected{border-color:var(--red);color:var(--red);background:var(--red-faint)}
+.type-btn .icon{font-size:18px;display:block;margin-bottom:4px}
+
+.launch-btn{width:100%;padding:16px;background:linear-gradient(180deg,#ff0040,#cc0020);border:1px solid var(--red);color:#fff;font-family:var(--font-d);font-size:13px;letter-spacing:3px;border-radius:4px;cursor:pointer;text-transform:uppercase;transition:all 0.2s;margin-top:12px}
+.launch-btn:hover{box-shadow:0 0 20px var(--red-glow);transform:translateY(-1px)}
+.launch-btn:active{transform:translateY(0)}
+.launch-btn:disabled{opacity:0.3;cursor:not-allowed;transform:none;box-shadow:none}
+
+.stop-btn{width:100%;padding:12px;background:none;border:1px solid var(--amber);color:var(--amber);font-family:var(--font-m);font-size:11px;border-radius:4px;cursor:pointer;margin-top:8px;transition:all 0.2s}
+.stop-btn:hover{background:rgba(255,170,0,0.1);box-shadow:0 0 10px rgba(255,170,0,0.2)}
+
+/* Attack Log */
+.log-panel{overflow-y:auto}
+.log-entry{font-size:11px;padding:6px 0;border-bottom:1px solid rgba(255,0,64,0.05);line-height:1.5}
+.log-time{color:var(--text-dim);margin-right:6px;font-size:10px}
+.log-entry.fdi{border-left:2px solid var(--amber);padding-left:8px}
+.log-entry.ddos{border-left:2px solid var(--red);padding-left:8px}
+.log-entry.stop{border-left:2px solid #00ff41;padding-left:8px}
+.log-empty{color:var(--text-dim);text-align:center;padding:40px 10px;font-size:11px}
+
+/* Active Attacks */
+.active-attacks{margin-bottom:16px}
+.active-attack{display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border:1px solid var(--border);border-radius:3px;margin-bottom:6px;font-size:11px;animation:pulse-border 1.5s infinite}
+.active-attack.fdi{border-color:var(--amber);color:var(--amber)}
+.active-attack.ddos{border-color:var(--red);color:var(--red)}
+@keyframes pulse-border{0%,100%{opacity:1}50%{opacity:0.5}}
+.active-attack .stop-x{background:none;border:none;color:inherit;cursor:pointer;font-size:14px;padding:0 4px}
+
+footer{height:32px;background:#0f0505;border-top:1px solid var(--border);display:flex;align-items:center;padding:0 24px;font-size:11px;color:var(--text-dim);gap:20px}
+.connected{color:#00ff41}
+.disconnected{color:var(--red)}
+
+::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:var(--bg)}::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>⚠ ATTACK SIMULATOR</h1>
+    <span class="warn">⚡ FOR DEMO PURPOSES ONLY</span>
+  </header>
+  <main>
+    <!-- Left Panel: Target & Attack Config -->
+    <div class="panel">
+      <div class="panel-title">Select Target Node</div>
+      <div class="node-grid" id="nodeGrid"></div>
+
+      <div class="panel-title">Attack Type</div>
+      <div class="attack-type">
+        <button class="type-btn" data-type="FDI" onclick="selectType('FDI')">
+          <span class="icon">🔬</span>
+          FDI Attack<br><small style="color:inherit;opacity:0.6">Spoof Sensor Data</small>
+        </button>
+        <button class="type-btn" data-type="DDOS" onclick="selectType('DDOS')">
+          <span class="icon">🌐</span>
+          DDoS Attack<br><small style="color:inherit;opacity:0.6">Flood Network</small>
+        </button>
+      </div>
+
+      <div class="attack-section">
+        <button class="launch-btn" id="launchBtn" onclick="launchAttack()" disabled>
+          ▶ LAUNCH ATTACK
+        </button>
+        <button class="stop-btn" onclick="stopAllAttacks()">
+          ■ STOP ALL ATTACKS
+        </button>
+      </div>
+    </div>
+
+    <!-- Right Panel: Log & Active Attacks -->
+    <div class="panel log-panel">
+      <div class="panel-title">Active Attacks</div>
+      <div id="activeAttacks"></div>
+      <div class="panel-title">Attack Log</div>
+      <div id="attackLog"><div class="log-empty">No attacks launched yet.<br>Select a target node and attack type to begin.</div></div>
+    </div>
+  </main>
+  <footer>
+    <span>CHANNEL:</span>
+    <span id="connectionStatus" class="disconnected">DISCONNECTED</span>
+    <span>TARGET:</span>
+    <span>GridShield AI Dashboard</span>
+  </footer>
+</div>
+
+<script>
+const NODES = [
+  { id: 'N1', name: 'Gachibowli 132kV' },
+  { id: 'N2', name: 'HITEC City 220kV' },
+  { id: 'N3', name: 'Kukatpally 132kV' },
+  { id: 'N4', name: 'Secunderabad 220kV' },
+  { id: 'N5', name: 'Begumpet 132kV' },
+  { id: 'N6', name: 'Mehdipatnam 220kV' },
+  { id: 'N7', name: 'LB Nagar 132kV' },
+  { id: 'N8', name: 'Charminar 132kV' },
+];
+
+let selectedNode = null;
+let selectedType = null;
+let activeAttacks = [];
+let channel = null;
+
+// Initialize BroadcastChannel
+function initChannel() {
+  try {
+    channel = new BroadcastChannel('gridshield-attacks');
+    document.getElementById('connectionStatus').textContent = 'CONNECTED';
+    document.getElementById('connectionStatus').className = 'connected';
+    addLog('Channel established to GridShield dashboard.', 'stop');
+  } catch (e) {
+    addLog('Failed to establish channel: ' + e.message, 'ddos');
+  }
+}
+
+// Render node grid
+function renderNodes() {
+  const grid = document.getElementById('nodeGrid');
+  grid.innerHTML = NODES.map(n => `
+    <button class="node-btn ${selectedNode === n.id ? 'selected' : ''}" onclick="selectNode('${n.id}')">
+      ${n.name}
+      <span class="node-id">${n.id}</span>
+    </button>
+  `).join('');
+}
+
+function selectNode(id) {
+  selectedNode = id;
+  renderNodes();
+  updateLaunchBtn();
+}
+
+function selectType(type) {
+  selectedType = type;
+  document.querySelectorAll('.type-btn').forEach(btn => {
+    btn.classList.toggle('selected', btn.dataset.type === type);
+  });
+  updateLaunchBtn();
+}
+
+function updateLaunchBtn() {
+  document.getElementById('launchBtn').disabled = !(selectedNode && selectedType);
+}
+
+function launchAttack() {
+  if (!selectedNode || !selectedType || !channel) return;
+
+  const node = NODES.find(n => n.id === selectedNode);
+  const attackId = `${selectedType}-${selectedNode}-${Date.now()}`;
+
+  // Check if already attacking this node with this type
+  if (activeAttacks.find(a => a.nodeId === selectedNode && a.type === selectedType)) {
+    addLog(`Already attacking ${node.name} with ${selectedType}!`, selectedType.toLowerCase());
+    return;
+  }
+
+  const attack = { id: attackId, nodeId: selectedNode, nodeName: node.name, type: selectedType };
+  activeAttacks.push(attack);
+
+  // Send to dashboard
+  channel.postMessage({
+    action: 'ATTACK_START',
+    type: selectedType,
+    nodeId: selectedNode,
+    nodeName: node.name,
+    attackId,
+    timestamp: new Date().toISOString(),
+    // FDI specific: spoof voltage to 0
+    ...(selectedType === 'FDI' && { spoofedVoltage: 0 }),
+    // DDoS specific: flood packets
+    ...(selectedType === 'DDOS' && { packetFlood: 2400000 }),
+  });
+
+  addLog(`${selectedType} attack launched on ${node.name}`, selectedType.toLowerCase());
+  renderActiveAttacks();
+}
+
+function stopAttack(attackId) {
+  const attack = activeAttacks.find(a => a.id === attackId);
+  if (!attack) return;
+
+  activeAttacks = activeAttacks.filter(a => a.id !== attackId);
+
+  if (channel) {
+    channel.postMessage({
+      action: 'ATTACK_STOP',
+      type: attack.type,
+      nodeId: attack.nodeId,
+      attackId,
+      timestamp: new Date().toISOString(),
+    });
+  }
+
+  addLog(`${attack.type} attack on ${attack.nodeName} stopped.`, 'stop');
+  renderActiveAttacks();
+}
+
+function stopAllAttacks() {
+  if (activeAttacks.length === 0) return;
+  [...activeAttacks].forEach(a => stopAttack(a.id));
+  addLog('All attacks terminated.', 'stop');
+}
+
+function renderActiveAttacks() {
+  const container = document.getElementById('activeAttacks');
+  if (activeAttacks.length === 0) {
+    container.innerHTML = '';
+    return;
+  }
+  container.innerHTML = activeAttacks.map(a => `
+    <div class="active-attack ${a.type.toLowerCase()}">
+      <span>${a.type === 'FDI' ? '🔬' : '🌐'} ${a.type} → ${a.nodeName}</span>
+      <button class="stop-x" onclick="stopAttack('${a.id}')">✕</button>
+    </div>
+  `).join('');
+}
+
+function addLog(message, type = '') {
+  const log = document.getElementById('attackLog');
+  // Remove empty state
+  const empty = log.querySelector('.log-empty');
+  if (empty) empty.remove();
+
+  const time = new Date().toTimeString().slice(0, 8);
+  const entry = document.createElement('div');
+  entry.className = `log-entry ${type}`;
+  entry.innerHTML = `<span class="log-time">${time}</span>${message}`;
+  log.prepend(entry);
+
+  // Keep last 50 entries
+  while (log.children.length > 50) log.removeChild(log.lastChild);
+}
+
+// Init
+renderNodes();
+initChannel();
+</script>
+</body>
+</html>
