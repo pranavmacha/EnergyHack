@@ -12,6 +12,11 @@ function App() {
   const [logs, setLogs] = useState([]);
   const [currentPage, setCurrentPage] = useState('map');
 
+  const addLog = useCallback((message) => {
+    const time = new Date().toTimeString().slice(0, 8);
+    setLogs(prev => [{ time, message }, ...prev.slice(0, 9)]);
+  }, []);
+
   // Initialize telemetry history with 20 pre-filled data points
   const [telemetryHistory, setTelemetryHistory] = useState(() => {
     const now = Date.now();
@@ -30,6 +35,23 @@ function App() {
     const interval = setInterval(() => {
       setNodes(prev => {
         const newNodes = prev.map(node => {
+          // Attacked/quarantined nodes have special behavior
+          if (node.status === 'attacked' && node._attackType === 'FDI') {
+            return { ...node, voltage: 0, current: 0 }; // Spoofed to 0
+          }
+          if (node.status === 'offline') {
+            return { ...node, packetRate: Math.round(2000000 + Math.random() * 500000) }; // DDoS flood
+          }
+          if (node.status === 'quarantined') {
+            // Quarantined nodes show recovering values
+            return {
+              ...node,
+              voltage: Math.round(clamp(node.voltage + (Math.random() - 0.5) * 1, 225, 235)),
+              current: Math.round(clamp(node.current + (Math.random() - 0.5) * 5, 400, 580)),
+              load: Math.round(clamp(node.load + (Math.random() - 0.5) * 2, 40, 95)),
+              packetRate: Math.round(clamp(node.packetRate + (Math.random() - 0.5) * 10, 450, 580)),
+            };
+          }
           if (node.status !== 'online') return node;
           return {
             ...node,
@@ -40,7 +62,6 @@ function App() {
           };
         });
 
-        // Update telemetry history with new readings
         const time = new Date().toTimeString().slice(0, 8);
         setTelemetryHistory(prevH => [
           ...prevH.slice(-19),
@@ -53,6 +74,60 @@ function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // BroadcastChannel — listen for attack events from simulator
+  useEffect(() => {
+    const channel = new BroadcastChannel('gridshield-attacks');
+
+    channel.onmessage = (event) => {
+      const { action, type, nodeId, nodeName } = event.data;
+
+      if (action === 'ATTACK_START') {
+        if (type === 'FDI') {
+          // FDI: Node turns red (attacked), voltage spoofed to 0
+          setNodes(prev => prev.map(n =>
+            n.id === nodeId ? { ...n, status: 'attacked', _attackType: 'FDI', voltage: 0, current: 0 } : n
+          ));
+          addLog(`⚠️ CRITICAL: FDI signature detected at ${nodeName}. Voltage spoofed to 0V.`);
+
+          // After 3 seconds, AI intercepts — quarantine the node
+          setTimeout(() => {
+            setNodes(prev => prev.map(n =>
+              n.id === nodeId && n.status === 'attacked'
+                ? { ...n, status: 'quarantined', voltage: 228, current: 470 }
+                : n
+            ));
+            addLog(`🟡 AI Intercept: ${nodeName} quarantined. Surge BLOCKED. Neighbors confirmed healthy.`);
+          }, 3000);
+
+        } else if (type === 'DDOS') {
+          // DDoS: Node goes offline, packet rate spikes
+          setNodes(prev => prev.map(n =>
+            n.id === nodeId ? { ...n, status: 'offline', _attackType: 'DDOS', packetRate: 2400000 } : n
+          ));
+          addLog(`🔴 ALERT: DDoS attack on ${nodeName}. 2.4M packets/sec. Traffic filtering deployed.`);
+
+          // After 2 seconds, show reroute
+          setTimeout(() => {
+            addLog(`🔵 Self-healing reroute active. Power rerouted around ${nodeName}. Zero blackouts.`);
+          }, 2000);
+        }
+      }
+
+      if (action === 'ATTACK_STOP') {
+        // Restore node to online
+        const originalNode = GRID_NODES.find(n => n.id === nodeId);
+        if (originalNode) {
+          setNodes(prev => prev.map(n =>
+            n.id === nodeId ? { ...n, status: 'online', _attackType: null, voltage: originalNode.voltage, current: originalNode.current, packetRate: originalNode.packetRate } : n
+          ));
+          addLog(`🟢 ${nodeName} recovered. All systems nominal.`);
+        }
+      }
+    };
+
+    return () => channel.close();
+  }, [addLog]);
+
   // Initial system logs
   useEffect(() => {
     const time = new Date().toTimeString().slice(0, 8);
@@ -62,10 +137,7 @@ function App() {
     ]);
   }, []);
 
-  const addLog = useCallback((message) => {
-    const time = new Date().toTimeString().slice(0, 8);
-    setLogs(prev => [{ time, message }, ...prev.slice(0, 9)]);
-  }, []);
+
 
   const selectedNode = selectedId ? nodes.find(n => n.id === selectedId) : null;
   const onlineCount = nodes.filter(n => n.status === 'online').length;
