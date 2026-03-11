@@ -8,7 +8,7 @@ const STATUS_STYLES = {
   ERROR: { color: '#555', icon: '✕', bg: 'rgba(85,85,85,0.06)' },
 };
 
-function ThreatPanel({ nodes, edges, onSelectNode, selectedId }) {
+function ThreatPanel({ nodes, edges, onSelectNode, selectedId, onThreatDetected }) {
   const [scanResults, setScanResults] = useState([]);
   const [lastScan, setLastScan] = useState(null);
   const [apiStatus, setApiStatus] = useState('connecting');
@@ -60,6 +60,11 @@ function ThreatPanel({ nodes, edges, onSelectNode, selectedId }) {
             ...threats.map(t => ({ time, ...t })),
             ...prev,
           ].slice(0, 20));
+
+          // ML model triggers actual defense — quarantine attacked nodes
+          if (onThreatDetected) {
+            threats.forEach(t => onThreatDetected(t));
+          }
         }
       } catch (err) {
         setApiStatus('error');
