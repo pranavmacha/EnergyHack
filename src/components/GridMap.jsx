@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { memo, useMemo, useRef } from 'react';
 import { MapContainer, TileLayer, CircleMarker, Polyline, Tooltip, useMapEvents } from 'react-leaflet';
 import { NODE_COLORS } from '../data/gridData';
 import 'leaflet/dist/leaflet.css';
@@ -23,19 +23,22 @@ function MapClickHandler({ onSelect, markerClickedRef }) {
 function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
   const markerClickedRef = useRef(false);
 
-  // Check if an edge is part of the Dijkstra reroute path
-  const isRerouteEdge = (edge) => {
-    if (!reroutePath || !reroutePath.edges) return false;
-    return reroutePath.edges.some(re =>
-      (re.source === edge.source && re.target === edge.target) ||
-      (re.source === edge.target && re.target === edge.source)
-    );
-  };
+  const nodeById = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node])),
+    [nodes]
+  );
 
-  // Find connected edges for the selected node
-  const isEdgeHighlighted = (edge) => {
-    return selectedId && (edge.source === selectedId || edge.target === selectedId);
-  };
+  const rerouteEdgeKeys = useMemo(() => {
+    if (!reroutePath?.edges) return new Set();
+    return new Set(
+      reroutePath.edges.map((edge) => [edge.source, edge.target].sort().join('|'))
+    );
+  }, [reroutePath]);
+
+  const rerouteNodeIds = useMemo(
+    () => new Set(reroutePath?.path || []),
+    [reroutePath]
+  );
 
   return (
     <MapContainer
@@ -58,11 +61,11 @@ function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
 
       {/* Power Lines (edges) */}
       {edges.map(edge => {
-        const src = nodes.find(n => n.id === edge.source);
-        const tgt = nodes.find(n => n.id === edge.target);
+        const src = nodeById.get(edge.source);
+        const tgt = nodeById.get(edge.target);
         if (!src || !tgt) return null;
-        const highlighted = isEdgeHighlighted(edge);
-        const isReroute = isRerouteEdge(edge);
+        const highlighted = selectedId && (edge.source === selectedId || edge.target === selectedId);
+        const isReroute = rerouteEdgeKeys.has([edge.source, edge.target].sort().join('|'));
         return (
           <Polyline
             key={`${edge.source}-${edge.target}`}
@@ -79,8 +82,8 @@ function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
 
       {/* Dijkstra reroute glow layer (rendered on top for visual emphasis) */}
       {reroutePath && reroutePath.edges && reroutePath.edges.map((edge, i) => {
-        const src = nodes.find(n => n.id === edge.source);
-        const tgt = nodes.find(n => n.id === edge.target);
+        const src = nodeById.get(edge.source);
+        const tgt = nodeById.get(edge.target);
         if (!src || !tgt) return null;
         return (
           <Polyline
@@ -98,7 +101,7 @@ function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
       {/* Grid Nodes (substations) */}
       {nodes.map(node => {
         const isSelected = node.id === selectedId;
-        const isOnReroute = reroutePath && reroutePath.path && reroutePath.path.includes(node.id);
+        const isOnReroute = rerouteNodeIds.has(node.id);
         const color = NODE_COLORS[node.status] || NODE_COLORS.online;
         return (
           <CircleMarker
@@ -129,4 +132,4 @@ function GridMap({ nodes, edges, selectedId, onSelect, reroutePath }) {
   );
 }
 
-export default GridMap;
+export default memo(GridMap);

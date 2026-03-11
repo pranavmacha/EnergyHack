@@ -1,4 +1,4 @@
-import { NODE_COLORS } from '../data/gridData';
+import { memo } from 'react';
 
 function Sidebar({ selectedNode, nodes, edges, logs, neighbors, onDeselect }) {
   const onlineCount = nodes.filter(n => n.status === 'online').length;
@@ -135,4 +135,4 @@ function Sidebar({ selectedNode, nodes, edges, logs, neighbors, onDeselect }) {
   );
 }
 
-export default Sidebar;
+export default memo(Sidebar);

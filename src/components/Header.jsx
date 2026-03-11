@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { memo, useState, useEffect } from 'react';
 
 function Header({ onlineCount, totalCount, currentPage, onPageChange }) {
   const [clock, setClock] = useState('--:--:--');
@@ -50,4 +50,4 @@ function Header({ onlineCount, totalCount, currentPage, onPageChange }) {
   );
 }
 
-export default Header;
+export default memo(Header);

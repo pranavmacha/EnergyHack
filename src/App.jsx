@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import Header from './components/Header';
 import GridMap from './components/GridMap';
 import Sidebar from './components/Sidebar';
@@ -8,12 +8,17 @@ import ThreatPanel from './components/ThreatPanel';
 import { GRID_NODES, GRID_EDGES, clamp } from './data/gridData';
 import { findReroutePath } from './utils/dijkstra';
 
+const GRID_NODE_NAME_BY_ID = Object.fromEntries(
+  GRID_NODES.map((node) => [node.id, node.name.split(' ')[0]])
+);
+
 function App() {
   const [nodes, setNodes] = useState(GRID_NODES);
   const [selectedId, setSelectedId] = useState(null);
   const [logs, setLogs] = useState([]);
   const [currentPage, setCurrentPage] = useState('map');
   const [reroutePath, setReroutePath] = useState(null);
+  const handleDeselect = useCallback(() => setSelectedId(null), []);
 
   const addLog = useCallback((message) => {
     const time = new Date().toTimeString().slice(0, 8);
@@ -24,10 +29,7 @@ function App() {
   const triggerReroute = useCallback((downNodeId, currentNodes) => {
     const route = findReroutePath(GRID_EDGES, GRID_NODES, downNodeId, currentNodes);
     if (route) {
-      const pathNames = route.path.map(id => {
-        const n = GRID_NODES.find(nd => nd.id === id);
-        return n ? n.name.split(' ')[0] : id;
-      });
+      const pathNames = route.path.map((id) => GRID_NODE_NAME_BY_ID[id] || id);
       setReroutePath(route);
       addLog(`🔄 DIJKSTRA: Power rerouted via ${pathNames.join(' → ')} (${route.hops} hops, weight ${route.totalWeight}).`);
     } else {
@@ -149,16 +151,29 @@ function App() {
 
 
 
-  const selectedNode = selectedId ? nodes.find(n => n.id === selectedId) : null;
-  const onlineCount = nodes.filter(n => n.status === 'online').length;
+  const nodeById = useMemo(
+    () => new Map(nodes.map((node) => [node.id, node])),
+    [nodes]
+  );
 
-  const getNeighbors = useCallback((nodeId) => {
-    const connectedEdges = GRID_EDGES.filter(e => e.source === nodeId || e.target === nodeId);
-    return connectedEdges.map(e => {
-      const neighborId = e.source === nodeId ? e.target : e.source;
-      return nodes.find(n => n.id === neighborId);
-    }).filter(Boolean);
-  }, [nodes]);
+  const selectedNode = useMemo(
+    () => (selectedId ? nodeById.get(selectedId) || null : null),
+    [selectedId, nodeById]
+  );
+
+  const onlineCount = useMemo(
+    () => nodes.filter((node) => node.status === 'online').length,
+    [nodes]
+  );
+
+  const neighbors = useMemo(() => {
+    if (!selectedId) return [];
+    return GRID_EDGES
+      .filter((edge) => edge.source === selectedId || edge.target === selectedId)
+      .map((edge) => (edge.source === selectedId ? edge.target : edge.source))
+      .map((neighborId) => nodeById.get(neighborId))
+      .filter(Boolean);
+  }, [selectedId, nodeById]);
 
 
 
@@ -235,8 +250,8 @@ function App() {
           nodes={nodes}
           edges={GRID_EDGES}
           logs={logs}
-          neighbors={selectedNode ? getNeighbors(selectedId) : []}
-          onDeselect={() => setSelectedId(null)}
+          neighbors={neighbors}
+          onDeselect={handleDeselect}
         />
       </main>
       <StatusBar nodes={nodes} />

@@ -1,3 +1,4 @@
+import { memo, useMemo } from 'react';
 import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
@@ -68,19 +69,29 @@ function makeChartOptions(title, yLabel, suggestedMin, suggestedMax) {
 }
 
 function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
-  const labels = history.map(h => h.time.slice(3, 8));
+  const labels = useMemo(
+    () => history.map((h) => h.time.slice(3, 8)),
+    [history]
+  );
+
+  const recordsByNodeId = useMemo(() => {
+    const map = new Map();
+    for (const node of nodes) {
+      map.set(node.id, history.map((h) => h.nodes.find((entry) => entry.id === node.id) || null));
+    }
+    return map;
+  }, [history, nodes]);
 
   const makeNodeDatasets = (field) =>
-    nodes.map(node => {
+    nodes.map((node) => {
       const isSelected = selectedId === node.id;
       const noSelection = selectedId === null;
       const nodeColor = NODE_COLORS[node.id] || DEFAULT_NODE_COLOR;
+      const series = recordsByNodeId.get(node.id) || [];
+
       return {
         label: node.name,
-        data: history.map(h => {
-          const r = h.nodes.find(n => n.id === node.id);
-          return r ? r[field] : null;
-        }),
+        data: series.map((row) => (row ? row[field] : null)),
         borderColor: isSelected
           ? nodeColor
           : noSelection
@@ -95,27 +106,43 @@ function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
     });
 
   // Voltage chart — includes limit line
-  const voltageData = {
-    labels,
-    datasets: [
-      {
-        label: '⚠ LIMIT (250V)',
-        data: Array(history.length).fill(250),
-        borderColor: '#ff004066',
-        borderDash: [8, 4],
-        borderWidth: 1.5,
-        pointRadius: 0,
-        fill: false,
-      },
-      ...makeNodeDatasets('voltage'),
-    ],
-  };
+  const voltageData = useMemo(
+    () => ({
+      labels,
+      datasets: [
+        {
+          label: '⚠ LIMIT (250V)',
+          data: Array(history.length).fill(250),
+          borderColor: '#ff004066',
+          borderDash: [8, 4],
+          borderWidth: 1.5,
+          pointRadius: 0,
+          fill: false,
+        },
+        ...makeNodeDatasets('voltage'),
+      ],
+    }),
+    [history.length, labels, nodes, selectedId, recordsByNodeId]
+  );
 
   // Traffic chart
-  const trafficData = {
-    labels,
-    datasets: makeNodeDatasets('packetRate'),
-  };
+  const trafficData = useMemo(
+    () => ({
+      labels,
+      datasets: makeNodeDatasets('packetRate'),
+    }),
+    [labels, nodes, selectedId, recordsByNodeId]
+  );
+
+  const voltageOptions = useMemo(
+    () => makeChartOptions('POWER TELEMETRY', 'Voltage (V)', 210, 260),
+    []
+  );
+
+  const trafficOptions = useMemo(
+    () => makeChartOptions('NETWORK TRAFFIC', 'Packets/s', 420, 600),
+    []
+  );
 
   return (
     <div id="telemetry-panel" className="telemetry-fullpage">
@@ -134,14 +161,14 @@ function TelemetryPanel({ history, selectedId, nodes, onSelectNode }) {
       </div>
       <div className="charts-row">
         <div className="chart-container">
-          <Line data={voltageData} options={makeChartOptions('POWER TELEMETRY', 'Voltage (V)', 210, 260)} />
+          <Line data={voltageData} options={voltageOptions} />
         </div>
         <div className="chart-container">
-          <Line data={trafficData} options={makeChartOptions('NETWORK TRAFFIC', 'Packets/s', 420, 600)} />
+          <Line data={trafficData} options={trafficOptions} />
         </div>
       </div>
     </div>
   );
 }
 
-export default TelemetryPanel;
+export default memo(TelemetryPanel);
